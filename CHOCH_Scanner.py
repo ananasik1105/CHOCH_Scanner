@@ -7,138 +7,150 @@ from concurrent.futures import ThreadPoolExecutor
 # ====== TELEGRAM ======
 BOT_TOKEN = "8504110255:AAHFQnxpm3kcqDQhsfluaetmjB0hgrs7j9U"
 CHAT_ID = "454082808"
+API_KEY = "DeecQb17BmXDUJoDMJlSFrwqQA5fKmHEomLRFcOFRDUTPre6GsXNvtZqH7GA1u47wocRWdWW1q379KtWEg"
 
-def send_telegram(msg):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    data = {"chat_id": CHAT_ID, "text": msg}
-    try:
-        r = requests.post(url, data=data, timeout=5)
-        if r.status_code != 200:
-            print("Ошибка Telegram:", r.text)
-    except Exception as e:
-        print("Ошибка при отправке в Telegram:", e)
+# ====== TIMEFRAMES И SYMBOLS ======
+timeframes = ["15m", "1h", "4h"]
 
-# ====== НАСТРОЙКИ ======
-timeframes = ["15m", "1h", "4h", "1d"]
-
+# Топ-300 монет
 symbols = [
-    # здесь вставь топ-200 монет, например:
     "BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","BNB-USDT","ADA-USDT","DOGE-USDT","AVAX-USDT",
-    # ... полный список
+"LINK-USDT","POL-USDT","LTC-USDT","ATOM-USDT","TRX-USDT","APT-USDT","NEAR-USDT",
+"FIL-USDT","ALGO-USDT","MANA-USDT","SAND-USDT","FTM-USDT","LRC-USDT","GRT-USDT","AXS-USDT",
+"XTZ-USDT","KSM-USDT","VET-USDT","EOS-USDT","XLM-USDT","DASH-USDT","ZEC-USDT","UNI-USDT",
+"COMP-USDT","AAVE-USDT","SNX-USDT","KNC-USDT","YFI-USDT","CRV-USDT","1INCH-USDT","CHZ-USDT",
+"ENJ-USDT","SUSHI-USDT","MKR-USDT","BNT-USDT","STX-USDT","QTUM-USDT","NEO-USDT","RVN-USDT",
+"ICP-USDT","FLOW-USDT","GALA-USDT","THETA-USDT","CEL-USDT","BAT-USDT","ZRX-USDT","WAVES-USDT",
+"OMG-USDT","BTG-USDT","DOGE-USDT","SHIB-USDT","RVN-USDT","HNT-USDT","CELO-USDT","FTT-USDT",
+"KAVA-USDT","ONE-USDT","ONT-USDT","IOST-USDT","DGB-USDT","SC-USDT","RVN-USDT","TFUEL-USDT",
+"ICX-USDT","AR-USDT","STMX-USDT","CHSB-USDT","RVN-USDT","XEM-USDT","KDA-USDT","IOTA-USDT",
+"NEAR-USDT","OCEAN-USDT","ANKR-USDT","GRT-USDT","COTI-USDT","NKN-USDT","LUNA-USDT","RUNE-USDT",
+"CAKE-USDT","BAKE-USDT","ALPHA-USDT","BAND-USDT","REEF-USDT","HIVE-USDT","RAY-USDT","SRM-USDT",
+"ORN-USDT","FIS-USDT","LPT-USDT","GLM-USDT","STORJ-USDT","SXP-USDT","LEND-USDT","REN-USDT",
+"1INCH-USDT","OXT-USDT","CELR-USDT","MATH-USDT","KNC-USDT","BNT-USDT","RLC-USDT","ANT-USDT",
+"TRIBE-USDT","API3-USDT","NFT-USDT","SPELL-USDT","RAD-USDT","GMX-USDT","OP-USDT","ARB-USDT",
+"DYDX-USDT","ENS-USDT","LOOKS-USDT","PEOPLE-USDT","GODS-USDT","MAGIC-USDT","CVX-USDT","FXS-USDT",
+"CRV-USDT","BAL-USDT","RENBTC-USDT","SUSHI-USDT","AAVE-USDT","UNI-USDT","MKR-USDT","COMP-USDT",
+"YFI-USDT","SNX-USDT","LRC-USDT","1INCH-USDT","ALCX-USDT","FEI-USDT","FRAX-USDT","SPELL-USDT",
+"GMX-USDT","OP-USDT","ARB-USDT","DYDX-USDT","ENS-USDT","LOOKS-USDT","PEOPLE-USDT","GODS-USDT",
+"MAGIC-USDT","CVX-USDT","FXS-USDT","CRV-USDT","BAL-USDT","RENBTC-USDT","SUSHI-USDT","AAVE-USDT"
 ]
 
-# ====== ФУНКЦИИ ДЛЯ ДАННЫХ ======
+
+# ====== ФУНКЦИИ ======
+def send_telegram(msg):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+
 def get_klines(symbol, tf):
     url = "https://open-api.bingx.com/openApi/swap/v2/quote/klines"
-    params = {"symbol": symbol, "interval": tf, "limit": 200}
+    params = {"symbol": symbol, "interval": tf, "limit": 200, "apiKey": API_KEY}
     for _ in range(3):
         try:
             r = requests.get(url, params=params, timeout=10).json()
-            if "data" not in r:
-                time.sleep(1)
-                continue
             df = pd.DataFrame(r["data"])
-            df["high"] = df["high"].astype(float)
-            df["low"] = df["low"].astype(float)
-            df["close"] = df["close"].astype(float)
+            for col in ["high","low","close","volume","openInterest"]:
+                df[col] = df[col].astype(float)
             return df
         except:
             time.sleep(1)
     return None
 
-# ====== SWING & CHOCH ======
-def detect_swings(df, length=10):
-    highs = df["high"]
-    lows = df["low"]
-    swing_high = []
-    swing_low = []
-    for i in range(length, len(df)-length):
-        if highs[i] == max(highs[i-length:i+length]):
-            swing_high.append((i, highs[i]))
-        if lows[i] == min(lows[i-length:i+length]):
-            swing_low.append((i, lows[i]))
-    return swing_high, swing_low
+# ====== ИНДИКАТОРЫ ======
+def calc_rsi(df, length=14):
+    delta = df["close"].diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.rolling(length).mean()
+    avg_loss = loss.rolling(length).mean()
+    rs = avg_gain / (avg_loss + 1e-9)
+    return 100 - (100 / (1 + rs))
 
-def detect_choch_bos(df):
-    swing_high, swing_low = detect_swings(df)
-    if len(swing_high) < 2 or len(swing_low) < 2:
-        return None, None, None
+def calc_atr(df, length=14):
+    tr = pd.concat([
+        df["high"] - df["low"],
+        (df["high"] - df["close"].shift()).abs(),
+        (df["low"] - df["close"].shift()).abs()
+    ], axis=1).max(axis=1)
+    return tr.rolling(length).mean()
 
+# ====== DETECT CHOCH ======
+def detect_choch(df, swing_len=10):
+    swing_high = df["high"].rolling(swing_len, center=True).max()
+    swing_low = df["low"].rolling(swing_len, center=True).min()
     last_close = df["close"].iloc[-1]
-    last_high = swing_high[-1][1]
-    last_low = swing_low[-1][1]
-    prev_high = swing_high[-2][1]
-    prev_low = swing_low[-2][1]
+    
+    choch = None
+    last_swing_high = swing_high.iloc[-2]
+    last_swing_low = swing_low.iloc[-2]
 
-    choch_type = None
-    bos_type = None
-    sweep_type = None
+    if last_close > last_swing_high:
+        choch = "LONG"
+    elif last_close < last_swing_low:
+        choch = "SHORT"
 
-    # CHOCH
-    if last_close > prev_high:
-        choch_type = "bullish"
-    elif last_close < prev_low:
-        choch_type = "bearish"
+    return choch, last_close, last_swing_high, last_swing_low
 
-    # BOS
-    if last_close > last_high:
-        bos_type = "bullish"
-    elif last_close < last_low:
-        bos_type = "bearish"
-
-    # Sweep
-    if last_close < last_high and last_close > prev_high:
-        sweep_type = "liquidity_bullish"
-    elif last_close > last_low and last_close < prev_low:
-        sweep_type = "liquidity_bearish"
-
-    return choch_type, bos_type, sweep_type, swing_high, swing_low
-
-# ====== ОПРЕДЕЛЕНИЕ ТРЕНДА 1D ======
-def get_daily_trend(symbol):
-    df = get_klines(symbol, "1d")
-    if df is None:
-        return "неизвестно"
-    swing_high, swing_low = detect_swings(df)
-    if len(swing_high) < 2 or len(swing_low) < 2:
-        return "неизвестно"
-    if swing_high[-1][1] > swing_high[-2][1] and swing_low[-1][1] > swing_low[-2][1]:
-        return "восходящий"
-    elif swing_high[-1][1] < swing_high[-2][1] and swing_low[-1][1] < swing_low[-2][1]:
-        return "нисходящий"
-    else:
-        return "флэт"
-        # ====== СКАНЕР ======
+# ====== СКАНЕР ======
 def scan_symbol(symbol):
-    signals = []
     for tf in timeframes:
         df = get_klines(symbol, tf)
         if df is None or df.empty:
             continue
-        choch, bos, sweep, _, _ = detect_choch_bos(df)
-        if choch or bos or sweep:
-            signals.append(f"""
-TF: {tf}
-CHOCH: {choch}
-BOS: {bos}
-Sweep: {sweep}
-""")
-        time.sleep(0.3)  # пауза между запросами
-    if signals:
-        trend_1d = get_daily_trend(symbol)
-        msg = f"📈 Signal detected\nSymbol: {symbol}\nTrend 1D: {trend_1d}\n" + "\n".join(signals) + f"\nTime: {datetime.utcnow()}"
+
+        choch, last_close, swing_high, swing_low = detect_choch(df)
+        if not choch:
+            continue  # сигнал только при пробое
+
+        rsi_series = calc_rsi(df)
+        atr_series = calc_atr(df)
+        rsi_prev = rsi_series.iloc[-2] if len(rsi_series) > 1 else rsi_series.iloc[-1]
+        rsi = rsi_series.iloc[-1]
+        atr = atr_series.iloc[-1]
+
+        volume_change = (df["volume"].iloc[-1] / (df["volume"].iloc[-2] + 1e-9)) - 1
+        oi_change = (df["openInterest"].iloc[-1] / (df["openInterest"].iloc[-2] + 1e-9)) - 1
+
+        # ====== СИЛА СИГНАЛА ======
+        if abs(volume_change) > 0.3:
+            strength = "🟢🟢🟢🟢⚪️"
+        elif abs(volume_change) > 0.1:
+            strength = "🟢🟢🟢⚪️⚪️"
+        else:
+            strength = "🟢🟢⚪️⚪️⚪️"
+
+        # ====== ФОРМАТ СООБЩЕНИЯ ======
+        msg = (
+            f"🟢 CHOCH {choch}\n\n"
+            f"{symbol} | {tf.upper()}\n\n"
+            f"Break: {last_close:.2f}\n"
+            f"SwingHigh: {swing_high.iloc[-1]:.2f} SwingLow: {swing_low.iloc[-1]:.2f}\n"
+            f"RSI: {rsi_prev:.1f} → {rsi:.1f}\n"
+            f"Volume: {volume_change*100:+.0f}%\n"
+            f"OI: {oi_change*100:+.1f}%\n"
+            f"ATR: {atr:.2f}x\n\n"
+            f"Strength:\n{strength}\n\n"
+            f"{datetime.utcnow().strftime('%H:%M UTC')}"
+        )
+
         print(msg)
         send_telegram(msg)
+        time.sleep(0.5)
 
 def scan():
     with ThreadPoolExecutor(max_workers=10) as executor:
         executor.map(scan_symbol, symbols)
 
 # ====== ЦИКЛ РАБОТЫ ======
-while True:
-    hour = (datetime.utcnow().hour + 3) % 24
-    if 6 <= hour <= 22:
-        scan()
-    else:
-        print("Сейчас вне рабочего времени. Спим.")
-    time.sleep(300)
+from datetime import datetime, timezone, timedelta
+
+# UTC+3
+tz = timezone(timedelta(hours=3))
+now = datetime.now(tz)
+hour = now.hour
+
+# проверка рабочего времени: с 8:00 до 1:00
+if 8 <= hour or hour <= 1:
+    scan()
+else:
+    print("Сейчас вне рабочего времени. Спим.")
