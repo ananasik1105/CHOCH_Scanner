@@ -103,7 +103,9 @@ def detect_choch(df, swing_len=10):
 
 # ====== СКАНЕР ======
 def scan_symbol(symbol):
+    print(f"[SCAN] Проверяем {symbol}")
     for tf in timeframes:
+    print(f"[SCAN] Таймфрейм {tf}")
         df = get_klines(symbol, tf)
         if df is None or df.empty:
             continue
