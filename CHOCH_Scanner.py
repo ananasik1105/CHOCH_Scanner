@@ -103,17 +103,13 @@ def detect_choch(df, swing_len=10):
 
 # ====== СКАНЕР ======
 def scan_symbol(symbol):
-    print(f"[SCAN] Starting scan for {symbol}")  # 🔹 начало сканирования монеты
     for tf in timeframes:
-        print(f"[SCAN] Checking timeframe {tf} for {symbol}")
         df = get_klines(symbol, tf)
         if df is None or df.empty:
-            print(f"[WARN] No data for {symbol} {tf}")
             continue
 
         choch, last_close, swing_high, swing_low = detect_choch(df)
         if not choch:
-        print(f"{symbol} {tf}: last_close={last_close:.2f}, swing_high={swing_high.iloc[-1]:.2f}, swing_low={swing_low.iloc[-1]:.2f}, CHoCH={choch}")
             continue  # сигнал только при пробое
 
         rsi_series = calc_rsi(df)
