@@ -76,13 +76,23 @@ def calc_atr(df, length=14):
 
 # ====== DETECT CHOCH ======
 def detect_choch(df, swing_len=10):
-    swing_high = df["high"].rolling(swing_len, center=True).max()
-    swing_low = df["low"].rolling(swing_len, center=True).min()
+
+    if len(df) < swing_len + 2:
+        return None, None, None, None
+
+    swing_high = df["high"].rolling(window=swing_len, center=True).max()
+    swing_low = df["low"].rolling(window=swing_len, center=True).min()
+
     last_close = df["close"].iloc[-1]
-    
-    choch = None
+
     last_swing_high = swing_high.iloc[-2]
     last_swing_low = swing_low.iloc[-2]
+
+    # защита от NaN
+    if pd.isna(last_swing_high) or pd.isna(last_swing_low):
+        return None, None, None, None
+
+    choch = None
 
     if last_close > last_swing_high:
         choch = "LONG"
@@ -146,10 +156,6 @@ from datetime import datetime, timezone, timedelta
 
 # UTC+3
 tz = timezone(timedelta(hours=3))
-now = datetime.now(tz)
-hour = now.hour
-
-# проверка рабочего времени: с 8:00 до 1:00
 
 from flask import Flask
 import threading
@@ -166,7 +172,17 @@ def run_web():
     app.run(host="0.0.0.0", port=port)
 
 threading.Thread(target=run_web).start()
-if 8 <= hour or hour <= 1:
-    scan()
-else:
-    print("Сейчас вне рабочего времени. Спим.")
+
+# основной цикл
+while True:
+
+    now = datetime.now(tz)
+    hour = now.hour
+
+    # рабочее время 08:00 – 01:00
+    if hour >= 8 or hour <= 1:
+        scan()
+    else:
+        print("Сейчас вне рабочего времени. Спим.")
+
+    time.sleep(60)
