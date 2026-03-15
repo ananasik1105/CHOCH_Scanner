@@ -103,26 +103,35 @@ def detect_choch(df, swing_len=10):
 
 # ====== СКАНЕР ======
 def scan_symbol(symbol):
-    print(f"[SCAN] Проверяем {symbol}")
+    print(f"[SCAN] Начинаем проверку пары {symbol}")
     for tf in timeframes:
         print(f"[SCAN] Таймфрейм {tf}")
         df = get_klines(symbol, tf)
         if df is None or df.empty:
+            print(f"[SCAN] Нет данных для {symbol} на {tf}")
             continue
-            
-        choch, last_close, swing_high, swing_low = detect_choch(df)
-        if not choch:
-            continue  # сигнал только при пробое
 
+        # Проверяем CHoCH
+        choch, last_close, swing_high, swing_low = detect_choch(df)
+        if choch:
+            print(f"[SIGNAL] {symbol} {tf} CHoCH: {choch} Break: {last_close}")
+        else:
+            print(f"[SCAN] {symbol} {tf} без сигнала")
+
+        # RSI и ATR
         rsi_series = calc_rsi(df)
         atr_series = calc_atr(df)
         rsi_prev = rsi_series.iloc[-2] if len(rsi_series) > 1 else rsi_series.iloc[-1]
         rsi = rsi_series.iloc[-1]
         atr = atr_series.iloc[-1]
 
+        print(f"[DATA] RSI: {rsi_prev:.1f} → {rsi:.1f} ATR: {atr:.2f}")
+
+        # Объем и открытый интерес
         volume_change = (df["volume"].iloc[-1] / (df["volume"].iloc[-2] + 1e-9)) - 1
         oi_change = (df["openInterest"].iloc[-1] / (df["openInterest"].iloc[-2] + 1e-9)) - 1
-
+        print(f"[DATA] Volume: {volume_change*100:+.0f}% | OI: {oi_change*100:+.1f}%")
+        
         # ====== СИЛА СИГНАЛА ======
         if abs(volume_change) > 0.3:
             strength = "🟢🟢🟢🟢⚪️"
