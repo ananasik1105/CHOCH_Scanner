@@ -181,6 +181,7 @@ while True:
 
     # рабочее время 08:00 – 01:00
     if hour >= 8 or hour <= 1:
+        print ("Scanning market...")
         scan()
     else:
         print("Сейчас вне рабочего времени. Спим.")
