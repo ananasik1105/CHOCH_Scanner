@@ -3,3 +3,5 @@ numpy
 requests
 python-binance
 TA-Lib
+flask
+python-telegram-bot
