@@ -1,8 +1,11 @@
 import requests
 import pandas as pd
 import time
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor
+from flask import Flask
+import threading
+import os
 
 # ====== TELEGRAM ======
 BOT_TOKEN = "8504110255:AAHFQnxpm3kcqDQhsfluaetmjB0hgrs7j9U"
@@ -35,7 +38,6 @@ symbols = [
 "GMX-USDT","OP-USDT","ARB-USDT","DYDX-USDT","ENS-USDT","LOOKS-USDT","PEOPLE-USDT","GODS-USDT",
 "MAGIC-USDT","CVX-USDT","FXS-USDT","CRV-USDT","BAL-USDT","RENBTC-USDT","SUSHI-USDT","AAVE-USDT"
 ]
-
 
 # ====== ФУНКЦИИ ======
 def send_telegram(msg):
@@ -76,114 +78,48 @@ def calc_atr(df, length=14):
 
 # ====== DETECT CHOCH ======
 def detect_choch(df, swing_len=10):
-
     if len(df) < swing_len + 2:
         return None, None, None, None
-
     swing_high = df["high"].rolling(window=swing_len, center=True).max()
     swing_low = df["low"].rolling(window=swing_len, center=True).min()
-
     last_close = df["close"].iloc[-1]
-
     last_swing_high = swing_high.iloc[-2]
     last_swing_low = swing_low.iloc[-2]
-
-    # защита от NaN
     if pd.isna(last_swing_high) or pd.isna(last_swing_low):
         return None, None, None, None
-
     choch = None
-
     if last_close > last_swing_high:
         choch = "LONG"
     elif last_close < last_swing_low:
         choch = "SHORT"
-
     return choch, last_close, last_swing_high, last_swing_low
 
 # ====== СКАНЕР ======
 def scan_symbol(symbol):
+    print(f"[SCAN] Starting scan for {symbol}")
     for tf in timeframes:
+        print(f"[SCAN] Checking timeframe {tf} for {symbol}")
         df = get_klines(symbol, tf)
         if df is None or df.empty:
+            print(f"[WARN] No data for {symbol} {tf}")
             continue
-
         choch, last_close, swing_high, swing_low = detect_choch(df)
         if not choch:
-            continue  # сигнал только при пробое
-
+            print(f"[INFO] No CHoCH detected for {symbol} {tf}")
+            continue
+        print(f"[INFO] CHoCH detected: {choch} | Close: {last_close:.2f} | SwingHigh: {swing_high:.2f} | SwingLow: {swing_low:.2f}")
         rsi_series = calc_rsi(df)
         atr_series = calc_atr(df)
-        rsi_prev = rsi_series.iloc[-2] if len(rsi_series) > 1 else rsi_series.iloc[-1]
         rsi = rsi_series.iloc[-1]
         atr = atr_series.iloc[-1]
-
-        volume_change = (df["volume"].iloc[-1] / (df["volume"].iloc[-2] + 1e-9)) - 1
+        vol_change = (df["volume"].iloc[-1] / (df["volume"].iloc[-2] + 1e-9)) - 1
         oi_change = (df["openInterest"].iloc[-1] / (df["openInterest"].iloc[-2] + 1e-9)) - 1
-
-        # ====== СИЛА СИГНАЛА ======
-        if abs(volume_change) > 0.3:
-            strength = "🟢🟢🟢🟢⚪️"
-        elif abs(volume_change) > 0.1:
-            strength = "🟢🟢🟢⚪️⚪️"
-        else:
-            strength = "🟢🟢⚪️⚪️⚪️"
-
-        # ====== ФОРМАТ СООБЩЕНИЯ ======
+        print(f"[METRICS] RSI: {rsi:.1f}, ATR: {atr:.2f}, Volume Δ: {vol_change*100:+.0f}%, OI Δ: {oi_change*100:+.1f}%")
         msg = (
-            f"🟢 CHOCH {choch}\n\n"
-            f"{symbol} | {tf.upper()}\n\n"
+            f"🟢 CHOCH {choch}\n"
+            f"{symbol} | {tf.upper()}\n"
             f"Break: {last_close:.2f}\n"
-            f"SwingHigh: {swing_high.iloc[-1]:.2f} SwingLow: {swing_low.iloc[-1]:.2f}\n"
-            f"RSI: {rsi_prev:.1f} → {rsi:.1f}\n"
-            f"Volume: {volume_change*100:+.0f}%\n"
+            f"SwingHigh: {swing_high:.2f} SwingLow: {swing_low:.2f}\n"
+            f"RSI: {rsi:.1f}\n"
+            f"Volume: {vol_change*100:+.0f}%\n"
             f"OI: {oi_change*100:+.1f}%\n"
-            f"ATR: {atr:.2f}x\n\n"
-            f"Strength:\n{strength}\n\n"
-            f"{datetime.utcnow().strftime('%H:%M UTC')}"
-        )
-
-        print(msg)
-        send_telegram(msg)
-        time.sleep(0.5)
-
-def scan():
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        executor.map(scan_symbol, symbols)
-
-# ====== ЦИКЛ РАБОТЫ ======
-from datetime import datetime, timezone, timedelta
-
-# UTC+3
-tz = timezone(timedelta(hours=3))
-
-from flask import Flask
-import threading
-import os
-
-app = Flask(__name__)
-
-@app.route("/")
-def home():
-    return "CHOCH Scanner running"
-
-def run_web():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
-
-threading.Thread(target=run_web).start()
-
-# основной цикл
-while True:
-
-    now = datetime.now(tz)
-    hour = now.hour
-
-    # рабочее время 08:00 – 01:00
-    if hour >= 8 or hour <= 1:
-        print ("Scanning market...")
-        scan()
-    else:
-        print("Сейчас вне рабочего времени. Спим.")
-
-    time.sleep(60)
