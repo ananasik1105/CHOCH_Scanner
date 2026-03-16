@@ -2,6 +2,9 @@ import time
 import requests
 import pandas as pd
 import datetime
+from threading import Thread
+from flask import Flask
+import os
 
 # ====== НАСТРОЙКИ ======
 API_KEY = "DeecQb17BmXDUJoDMJlSFrwqQA5fKmHEomLRFcOFRDUTPre6GsXNvtZqH7GA1u47wocRWdWW1q379KtWEg"
@@ -9,6 +12,13 @@ BOT_TOKEN = "8504110255:AAHFQnxpm3kcqDQhsfluaetmjB0hgrs7j9U"
 CHAT_ID = "454082808"
 SCAN_DELAY = 60  # пауза между проверками в секундах
 TIMEFRAME = "15m"  # 15-минутные свечи
+
+# ====== FLASK ======
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "Scanner is running!"
 
 # ====== ФУНКЦИИ ======
 def send_telegram(msg):
@@ -79,7 +89,7 @@ def scan_symbol(symbol):
         print(f"[SCAN] {symbol} без сигнала")
 
 # ====== SCAN LOOP ======
-def scan():
+def scan_loop():
     symbols = get_symbols()
     print(f"[INFO] Будут проверены {len(symbols)} пар")
 
@@ -95,6 +105,13 @@ def scan():
 
         time.sleep(SCAN_DELAY)
 
-# ====== START ======
+# ====== MAIN ======
 if __name__ == "__main__":
-    scan()
+    # Запускаем сканер в фоне
+    t = Thread(target=scan_loop)
+    t.daemon = True
+    t.start()
+
+    # Запускаем Flask сервер
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
