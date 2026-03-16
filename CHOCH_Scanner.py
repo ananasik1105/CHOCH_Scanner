@@ -27,13 +27,19 @@ def send_telegram(msg):
 
 def get_symbols():
     """Получаем список фьючерсных пар (fallback на несколько популярных, если API не работает)"""
-    url = "https://open-api.bingx.com/openApi/swap/v2/quote/symbols"
+    url = "https://open-api.bingx.com/openApi/swap/v2/quote/contracts"
     try:
         r = requests.get(url, params={"apiKey": API_KEY}, timeout=10).json()
-        if "data" in r:
-            return [s["symbol"] for s in r["data"] if s["symbol"].endswith("USDT")]
-    except:
-        pass
+        if "data" in r and r["data"]:
+            symbols = []
+            for s in r["data"]:
+                if "symbol" in s and s["symbol"].endswith("USDT"):
+                    symbols.append(s["symbol"])
+            print(f"[INFO] Получено символов: {len(symbols)}")
+            return symbols
+    except Exception as e:
+        print(f"[ERROR] get_symbols: {e}")
+
     print("[WARN] Используем fallback список пар")
     return ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "BNB-USDT"]
 
