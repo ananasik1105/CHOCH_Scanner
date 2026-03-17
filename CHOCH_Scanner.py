@@ -11,7 +11,7 @@ API_KEY    = "DeecQb17BmXDUJoDMJlSFrwqQA5fKmHEomLRFcOFRDUTPre6GsXNvtZqH7GA1u47wo
 BOT_TOKEN  = "8504110255:AAHFQnxpm3kcqDQhsfluaetmjB0hgrs7j9U"
 CHAT_ID    = "454082808"
 SCAN_DELAY = 300      # секунд между проверками
-TIMEFRAME  = "1h" "4h" "1d"
+TIMEFRAMES = ["1h", "4h", "1d"]
 LEN        = 50      # CHoCH Detection Period (как в LuxAlgo по умолчанию)
 FRESH_BARS = 3       # CHoCH считается свежим если случился в последних N барах
 # ====== FLASK ======
@@ -19,8 +19,8 @@ app = Flask(__name__)
 @app.route("/")
 def home():
     return "Scanner is running!"
-# ====== ПАМЯТЬ: 1 сигнал на монету в день ======
-# { "BTC-USDT": "2026-03-16" }
+# ====== ПАМЯТЬ: 1 сигнал на монету+таймфрейм в день ======
+# { "BTC-USDT_1h": "2026-03-16" }
 signal_dates = {}
 # ====== API ======
 def send_telegram(msg):
@@ -68,15 +68,6 @@ def get_klines(symbol, tf):
     return None
 # ====== СВИНГИ ПО АЛГОРИТМУ LUXALGO ======
 def find_swings_luxalgo(highs, lows, length):
-    """
-    Точная реализация функции swings(len) из LuxAlgo Pine Script.
-    upper = ta.highest(length)  →  max(highs[bar-length+1 .. bar])
-    lower = ta.lowest(length)   →  min(lows[bar-length+1 .. bar])
-    os = 0 если high[length] > upper  (бар `length` назад выше всех последующих → свинг хай)
-    os = 1 если low[length]  < lower  (бар `length` назад ниже всех последующих → свинг лой)
-    Переход 1→0: новый свинг хай на баре (bar - length)
-    Переход 0→1: новый свинг лой  на баре (bar - length)
-    """
     n = len(highs)
     swing_high = {}
     swing_low  = {}
@@ -97,14 +88,6 @@ def find_swings_luxalgo(highs, lows, length):
     return swing_high, swing_low
 # ====== ДЕТЕКТИРОВАНИЕ CHOCH (точно как в LuxAlgo) ======
 def detect_choch(df):
-    """
-    Симулируем LuxAlgo CHoCH бар за баром.
-    CHoCH рисуется ТОЛЬКО при смене структурного направления (if os != os[1]):
-      0 → 1 : CHoCH LONG  (из медвежьего тренда в бычий, close пробил последний свинг хай)
-      1 → 0 : CHoCH SHORT (из бычьего тренда в медвежий, close пробил последний свинг лой)
-    Продолжение тренда (BOS) — не сигнализируется.
-    Сигнал возвращается только если CHoCH свежий (последние FRESH_BARS баров).
-    """
     n = len(df)
     if n < LEN * 2 + 10:
         return None, None, None, None
@@ -116,7 +99,7 @@ def detect_choch(df):
     btmy        = None
     top_crossed = False
     btm_crossed = False
-    os_dir      = 0    # 0=медвежий, 1=бычий
+    os_dir      = 0
     last_choch_bar = -1
     last_choch_dir = None
     for bar in range(n):
@@ -134,7 +117,6 @@ def detect_choch(df):
         if btmy is not None and c < btmy and not btm_crossed:
             btm_crossed = True
             os_dir      = 0
-        # Только смена направления = CHoCH
         if os_dir != prev_dir:
             last_choch_bar = bar
             last_choch_dir = "LONG" if os_dir == 1 else "SHORT"
@@ -144,26 +126,28 @@ def detect_choch(df):
 # ====== SCAN ======
 def scan_symbol(symbol):
     today = datetime.date.today().isoformat()
-    # 1 сигнал на монету в день
-    if signal_dates.get(symbol) == today:
-        return
-    df = get_klines(symbol, TIMEFRAME)
-    if df is None:
-        return
-    choch, last_close, topy, btmy = detect_choch(df)
-    if choch:
-        msg = (
-            f"🚨 CHoCH {TIMEFRAME} | {symbol}\n"
-            f"Сигнал:    {choch}\n"
-            f"Close:     {last_close:.5f}\n"
-            f"SwingHigh: {topy:.5f}\n"
-            f"SwingLow:  {btmy:.5f}"
-        )
-        print(f"[SIGNAL] {symbol} → {choch} | close={last_close:.5f} sh={topy:.5f} sl={btmy:.5f}")
-        send_telegram(msg)
-        signal_dates[symbol] = today
-    else:
-        print(f"[----]   {symbol} нет сигнала")
+    for tf in TIMEFRAMES:
+        key = f"{symbol}_{tf}"
+        # 1 сигнал на монету + таймфрейм в день
+        if signal_dates.get(key) == today:
+            continue
+        df = get_klines(symbol, tf)
+        if df is None:
+            continue
+        choch, last_close, topy, btmy = detect_choch(df)
+        if choch:
+            msg = (
+                f"🚨 CHoCH {tf} | {symbol}\n"
+                f"Сигнал:    {choch}\n"
+                f"Close:     {last_close:.5f}\n"
+                f"SwingHigh: {topy:.5f}\n"
+                f"SwingLow:  {btmy:.5f}"
+            )
+            print(f"[SIGNAL] {symbol} {tf} -> {choch} | close={last_close:.5f} sh={topy:.5f} sl={btmy:.5f}")
+            send_telegram(msg)
+            signal_dates[key] = today
+        else:
+            print(f"[----]   {symbol} {tf} нет сигнала")
 def scan_loop():
     symbols = get_symbols()
     print(f"[INFO] Будут проверены {len(symbols)} пар")
