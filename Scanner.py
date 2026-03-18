@@ -1020,12 +1020,38 @@ def main_loop():
         time.sleep(SCAN_DELAY)
 
 
+def run_flask():
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, threaded=True)
+
 if __name__ == "__main__":
     import sys
-    print("[START] Scanner starting...", flush=True)
-    Thread(target=main_loop, daemon=True).start()
-    Thread(target=daily_report_loop, daemon=True).start()
-    print("[START] Background threads started", flush=True)
-    port = int(os.environ.get("PORT", 5000))
-    print(f"[START] Flask starting on port {port}", flush=True)
-    app.run(host="0.0.0.0", port=port, threaded=True)
+    import traceback
+    
+    # Пишем сразу в stderr (Render точно показывает)
+    sys.stderr.write("[START] Scanner starting...\n")
+    sys.stderr.flush()
+    
+    try:
+        # Flask в фоновом потоке
+        flask_thread = Thread(target=run_flask, daemon=True)
+        flask_thread.start()
+        sys.stderr.write("[START] Flask thread started\n")
+        sys.stderr.flush()
+        
+        # Daily report в фоновом потоке
+        report_thread = Thread(target=daily_report_loop, daemon=True)
+        report_thread.start()
+        sys.stderr.write("[START] Report thread started\n")
+        sys.stderr.flush()
+        
+        # Main thread — сканер
+        sys.stderr.write("[START] Starting main loop...\n")
+        sys.stderr.flush()
+        main_loop()
+    except Exception as e:
+        sys.stderr.write(f"[FATAL] {e}\n")
+        sys.stderr.write(traceback.format_exc())
+        sys.stderr.flush()
+        raise
+
