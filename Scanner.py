@@ -994,16 +994,27 @@ def scan_symbol(symbol, df_cache, oi):
 
 def main_loop():
     print(f"[INFO] Сканер запущен. Мин. вероятность: {MIN_PROB}%, мин. R:R: {MIN_RR}:1", flush=True)
+    sys.stderr.write("[INFO] Сканер запущен\n")
+    sys.stderr.flush()
     time.sleep(3)  # Даём Flask время стартовать
     while True:
         print("[INFO] === Новый цикл сканирования ===", flush=True)
+        sys.stderr.write("[INFO] === Новый цикл сканирования ===\n")
+        sys.stderr.flush()
         try:
             symbols = get_symbols()
+            sys.stderr.write(f"[INFO] Получено символов: {len(symbols)}\n")
+            sys.stderr.flush()
+            
             for sig in list(daily_signals):
                 if sig.get("outcome") not in ("win", "loss"):
                     check_signal_outcome(sig)
+            
+            scanned = 0
             for symbol in symbols:
                 try:
+                    sys.stderr.write(f"[INFO] Сканирую {symbol}...\n")
+                    sys.stderr.flush()
                     df_cache = {}
                     oi = get_open_interest(symbol)
                     for tf in list(set(TIMEFRAMES + ["4h", "1d"])):
@@ -1011,12 +1022,19 @@ def main_loop():
                         if df is not None:
                             df_cache[tf] = df
                     scan_symbol(symbol, df_cache, oi)
+                    scanned += 1
                     time.sleep(0.25)
                 except Exception as e:
-                    print(f"[ERROR] {symbol}: {e}")
+                    sys.stderr.write(f"[ERROR] {symbol}: {e}\n")
+                    sys.stderr.flush()
+            
+            sys.stderr.write(f"[INFO] Отсканировано символов: {scanned}\n")
+            sys.stderr.flush()
         except Exception as e:
-            print(f"[ERROR] main_loop: {e}")
-        print(f"[INFO] Цикл завершён. Ожидание {SCAN_DELAY} сек...")
+            sys.stderr.write(f"[ERROR] main_loop: {e}\n")
+            sys.stderr.flush()
+        sys.stderr.write(f"[INFO] Цикл завершён. Ожидание {SCAN_DELAY} сек...\n")
+        sys.stderr.flush()
         time.sleep(SCAN_DELAY)
 
 
@@ -1054,4 +1072,3 @@ if __name__ == "__main__":
         sys.stderr.write(traceback.format_exc())
         sys.stderr.flush()
         raise
-
