@@ -5,3 +5,5 @@ python-binance
 TA-Lib
 flask
 python-telegram-bot
+pip 
+install 
