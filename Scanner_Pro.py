@@ -185,9 +185,11 @@ def calc_choch_candle_info(df, choch_bar, direction, level):
     body   = abs(cl - open_p)
     body_pct = round(body / wick * 100, 1) if wick > 0 else 0
     if direction == "LONG" and level is not None:
-        body_closed = cl > level and min(cl, open_p) > level * 0.998
+        # Для LONG: тело должно закрыться ПОЛНОСТЬЮ выше уровня (min(open, close) > level)
+        body_closed = cl > level and min(cl, open_p) > level
     elif direction == "SHORT" and level is not None:
-        body_closed = cl < level and max(cl, open_p) < level * 1.002
+        # Для SHORT: тело должно закрыться ПОЛНОСТЬЮ ниже уровня (max(open, close) < level)
+        body_closed = cl < level and max(cl, open_p) < level
     else:
         body_closed = False
     return body_pct, body_closed, round(body, 6)
